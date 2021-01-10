@@ -70,6 +70,10 @@
   opacity: 100%;
 }
 
+.editor .toolkit > button[data-active="true"] {
+  opacity: 100%;
+}
+
 .editor .toolkit > button img {
   align-self: center;
   justify-self: center;
