@@ -9,6 +9,23 @@ const NODE_NAMES = {
 const BLOCK_NODES = [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.PARAGRAPH];
 const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
 
+function isBlockNode(node: Node): boolean {
+  return (BLOCK_NODES as Array<string>).includes(node.nodeName);
+}
+
+function isTextNode(node: Node): boolean {
+  return node.nodeType === Node.TEXT_NODE;
+}
+
+function replaceNodeName(oldNode: Node, newNodeName: string, parentNode: Node) {
+  const newBlockNode = document.createElement(newNodeName);
+  oldNode.childNodes.forEach((nestedChildNode) => {
+    newBlockNode.appendChild(nestedChildNode);
+  });
+
+  parentNode.replaceChild(newBlockNode, oldNode);
+}
+
 const editAreaElement = document.getElementById('edit-area');
 
 let selection = document.getSelection();
@@ -55,8 +72,6 @@ document.addEventListener('selectionchange', () => {
 
   if (selection) {
     const range = selection.getRangeAt(0);
-    console.log('range', range);
-
     updateButtonActiveStatus(range);
   }
 });
@@ -105,9 +120,16 @@ if (editAreaElement) {
     }
   });
 
-  const mutationObserver = new MutationObserver(() => {
+  const mutationObserver = new MutationObserver((mutations) => {
     if (editAreaElement.children.length === 0) {
       insertEmptyParagraph(editAreaElement);
+    } else {
+      const latestMutation = mutations[mutations.length - 1];
+      latestMutation.addedNodes.forEach((addedNode) => {
+        if (!isBlockNode(addedNode)) {
+          replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, editAreaElement);
+        }
+      });
     }
   });
 
@@ -164,10 +186,9 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
 
   const containerNode = range.commonAncestorContainer;
 
-  const rootNode =
-    containerNode.nodeType === Node.TEXT_NODE
-      ? containerNode.parentNode
-      : containerNode;
+  const rootNode = isTextNode(containerNode)
+    ? containerNode.parentNode
+    : containerNode;
 
   if (!rootNode) return;
 
@@ -189,7 +210,7 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
       isEndContainerFound = true;
     }
 
-    if (childNode.nodeType === Node.TEXT_NODE) {
+    if (isTextNode(childNode)) {
       const textNode = childNode;
 
       const startOffset =
@@ -226,6 +247,44 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
   rootNode.childNodes.forEach(checkChild);
 }
 
+function walkTreeToUpdateBlockNode(nodeName: string): void {
+  if (!selection) return;
+  const range = selection.getRangeAt(0);
+
+  // const containerNode = range.commonAncestorContainer;
+
+  const rootNode = editAreaElement;
+
+  if (!rootNode) return;
+
+  let isStartContainerFound = false;
+  let isEndContainerFound = false;
+
+  function checkChild(childNode: Node, parentNode: Node): void {
+    if (!rootNode) return;
+    if (isEndContainerFound) return;
+
+    if (!isStartContainerFound && !childNode.contains(range.startContainer))
+      return;
+
+    if (childNode === range.startContainer) {
+      isStartContainerFound = true;
+    }
+
+    if (childNode === range.endContainer) {
+      isEndContainerFound = true;
+    }
+
+    if (isBlockNode(childNode)) {
+      replaceNodeName(childNode, nodeName, parentNode);
+    } else if (childNode.childNodes.length > 0) {
+      childNode.childNodes.forEach((child) => checkChild(child, childNode));
+    }
+  }
+
+  rootNode.childNodes.forEach((child) => checkChild(child, rootNode));
+}
+
 function getButtonByNodeName(nodeName: string): Element | null {
   return document.querySelector(`[data-command="${nodeName.toLowerCase()}"]`);
 }
@@ -243,5 +302,21 @@ const italicButton = getButtonByNodeName(NODE_NAMES.ITALIC);
 if (italicButton) {
   italicButton.addEventListener('click', () => {
     walkTreeToUpdateInlineNode(NODE_NAMES.ITALIC);
+  });
+}
+
+const h1Button = getButtonByNodeName(NODE_NAMES.H1);
+
+if (h1Button) {
+  h1Button.addEventListener('click', () => {
+    walkTreeToUpdateBlockNode(NODE_NAMES.H1);
+  });
+}
+
+const h2Button = getButtonByNodeName(NODE_NAMES.H2);
+
+if (h2Button) {
+  h2Button.addEventListener('click', () => {
+    walkTreeToUpdateBlockNode(NODE_NAMES.H2);
   });
 }
