@@ -28,13 +28,29 @@ export function isTextNode(node: Node): boolean {
   return node.nodeType === Node.TEXT_NODE;
 }
 
+export function iterateChildNodes(
+  node: Node,
+  callback: (childNode: Node) => Node | null
+): void {
+  let currentChildNode: Node | null = node.firstChild;
+
+  while (currentChildNode) {
+    const nextSibling = callback(currentChildNode);
+    currentChildNode = nextSibling ?? currentChildNode.nextSibling;
+  }
+}
+
 export function replaceNode(
   oldNode: Node,
   newNode: Node,
   parentNode: Node
 ): void {
-  oldNode.childNodes.forEach((nestedChildNode) => {
-    newNode.appendChild(nestedChildNode);
+  iterateChildNodes(oldNode, (childNode) => {
+    const nextNode = childNode.nextSibling;
+
+    newNode.appendChild(childNode);
+
+    return nextNode;
   });
 
   parentNode.replaceChild(newNode, oldNode);
@@ -70,7 +86,7 @@ export function hasParentWithNodeName(
   let parent = currentNode.parentNode;
 
   while (parent && parent !== rootNode) {
-    if (parent.nodeName === parentNodeName) {
+    if (parent.nodeName.toUpperCase() === parentNodeName.toUpperCase()) {
       return true;
     }
 
@@ -110,9 +126,8 @@ export function wrapTextNodeIntoSpecificNode(params: {
 }) {
   const { textNode, wrapperNode, range } = params;
 
-  const rootNode = textNode.parentNode;
-
   const text = textNode.textContent ?? '';
+
   wrapperNode.textContent = text.slice(range.start, range.end);
 
   const newChildren: Array<Node | string> = [
@@ -121,24 +136,18 @@ export function wrapTextNodeIntoSpecificNode(params: {
     text.slice(range.end),
   ];
 
-  let previousSiblingNode = textNode.previousSibling;
+  const parent = textNode.parentNode;
 
-  while (previousSiblingNode) {
-    newChildren.unshift(previousSiblingNode);
-    previousSiblingNode = previousSiblingNode?.previousSibling ?? null;
-  }
+  if (parent) {
+    newChildren.forEach((child) => {
+      const newChild = convertToNode(child);
 
-  let nextSiblingNode = textNode.nextSibling;
+      if (newChild.textContent) {
+        parent.insertBefore(convertToNode(child), textNode);
+      }
+    });
 
-  while (nextSiblingNode) {
-    newChildren.push(nextSiblingNode);
-    nextSiblingNode = nextSiblingNode?.nextSibling ?? null;
-  }
-
-  if (rootNode) {
-    removeAllChildren(rootNode);
-
-    newChildren.forEach((child) => appendChild(rootNode, child));
+    parent.removeChild(textNode);
   }
 }
 
@@ -147,7 +156,7 @@ export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   paragraph.appendChild(document.createElement('br'));
   parentElement.appendChild(paragraph);
 
-  const range = new Range();
+  const range = document.createRange();
   range.setStart(paragraph, 0);
   range.setEnd(paragraph, 0);
 

@@ -7,6 +7,7 @@ import {
   isBlockNodeName,
   isInlineNodeName,
   isTextNode,
+  iterateChildNodes,
   replaceNodeName,
   updateButtonActiveStatus,
   wrapTextNodeIntoSpecificNode,
@@ -18,7 +19,7 @@ let selection = getCurrentSelection();
 document.addEventListener('selectionchange', () => {
   selection = getCurrentSelection();
 
-  if (selection) {
+  if (selection && selection.rangeCount > 0) {
     const range = selection.getRangeAt(0);
     updateButtonActiveStatus(range);
   }
@@ -48,7 +49,7 @@ const mutationObserver = new MutationObserver((mutations) => {
 mutationObserver.observe(EDITABLE_AREA_ELEMENT, { childList: true });
 
 function walkTreeToUpdateInlineNode(nodeName: string): void {
-  if (!selection) return;
+  if (!selection || selection.rangeCount === 0) return;
   const range = selection.getRangeAt(0);
 
   if (range.collapsed) return;
@@ -61,28 +62,16 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
 
   if (!rootNode) return;
 
-  let isStartContainerFound = false;
-  let isEndContainerFound = false;
-
   const newRange = document.createRange();
 
-  function checkChild(childNode: Node): void {
-    if (!rootNode) return;
-    if (isEndContainerFound) return;
+  function checkChild(childNode: Node): Node | null {
+    if (!rootNode || !selection) return null;
 
     /** skip child until find node where selection starts */
-    if (!isStartContainerFound && !childNode.contains(range.startContainer))
-      return;
-
-    if (childNode === range.startContainer) {
-      isStartContainerFound = true;
-    }
-
-    if (childNode === range.endContainer) {
-      isEndContainerFound = true;
-    }
+    if (!selection.containsNode(childNode, true)) return null;
 
     if (isTextNode(childNode)) {
+      const nextSiblingNode = childNode.nextSibling;
       const textNode = childNode;
 
       const isStartContainer = childNode === range.startContainer;
@@ -95,9 +84,9 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
 
       let selectedTextNode: Node | null = textNode;
 
-      if (!hasParentWithNodeName(textNode, nodeName)) {
-        const wrapperNode = document.createElement(nodeName);
+      const wrapperNode = document.createElement(nodeName);
 
+      if (!hasParentWithNodeName(textNode, nodeName)) {
         wrapTextNodeIntoSpecificNode({
           textNode,
           range: {
@@ -117,12 +106,18 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
       if (isEndContainer && selectedTextNode) {
         newRange.setEnd(selectedTextNode, endOffset - startOffset);
       }
-    } else if (childNode.childNodes.length > 0) {
-      childNode.childNodes.forEach(checkChild);
+
+      return nextSiblingNode;
     }
+
+    if (childNode.childNodes.length > 0) {
+      iterateChildNodes(childNode, checkChild);
+    }
+
+    return null;
   }
 
-  rootNode.childNodes.forEach(checkChild);
+  iterateChildNodes(rootNode, checkChild);
 
   /** save the same selection visually */
   selection.removeRange(range);
@@ -130,7 +125,7 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
 }
 
 function walkTreeToUpdateBlockNode(nodeName: string): void {
-  if (!selection) return;
+  if (!selection || selection.rangeCount === 0) return;
   const range = selection.getRangeAt(0);
 
   const startSelectionNode = range.startContainer;
@@ -142,30 +137,15 @@ function walkTreeToUpdateBlockNode(nodeName: string): void {
 
   if (!rootNode) return;
 
-  let isStartContainerFound = false;
-  let isEndContainerFound = false;
-
   function checkChild(childNode: Node, parentNode: Node): void {
-    if (!rootNode) return;
-    if (isEndContainerFound) return;
-
-    /** skip child until find node where selection starts */
-    if (!isStartContainerFound && !childNode.contains(startSelectionNode)) {
-      return;
-    }
-
-    if (childNode.contains(range.startContainer)) {
-      isStartContainerFound = true;
-    }
-
-    if (childNode.contains(range.endContainer)) {
-      isEndContainerFound = true;
-    }
+    if (!rootNode || !selection || !selection.containsNode(childNode)) return;
 
     if (isBlockNode(childNode)) {
       replaceNodeName(childNode, nodeName, parentNode);
     } else if (childNode.childNodes.length > 0) {
-      childNode.childNodes.forEach((child) => checkChild(child, childNode));
+      childNode.childNodes.forEach((nestedChild) =>
+        checkChild(nestedChild, childNode)
+      );
     }
   }
 
@@ -191,7 +171,7 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
 
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
-      walkTreeToUpdateInlineNode(nodeName);
+      requestAnimationFrame(() => walkTreeToUpdateInlineNode(nodeName));
     });
   }
 });
