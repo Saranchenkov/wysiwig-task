@@ -153,6 +153,7 @@ export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
 
   const selection = getCurrentSelection();
   if (selection) {
+    selection.removeAllRanges();
     selection.addRange(range);
   }
 }

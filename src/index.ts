@@ -64,10 +64,13 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
   let isStartContainerFound = false;
   let isEndContainerFound = false;
 
+  const newRange = document.createRange();
+
   function checkChild(childNode: Node): void {
     if (!rootNode) return;
     if (isEndContainerFound) return;
 
+    /** skip child until find node where selection starts */
     if (!isStartContainerFound && !childNode.contains(range.startContainer))
       return;
 
@@ -82,12 +85,15 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
     if (isTextNode(childNode)) {
       const textNode = childNode;
 
-      const startOffset =
-        childNode === range.startContainer ? range.startOffset : 0;
-      const endOffset =
-        childNode === range.endContainer
-          ? range.endOffset
-          : (textNode.textContent ?? '').length;
+      const isStartContainer = childNode === range.startContainer;
+      const isEndContainer = childNode === range.endContainer;
+
+      const startOffset = isStartContainer ? range.startOffset : 0;
+      const endOffset = isEndContainer
+        ? range.endOffset
+        : (textNode.textContent ?? '').length;
+
+      let selectedTextNode: Node | null = textNode;
 
       if (!hasParentWithNodeName(textNode, nodeName)) {
         const wrapperNode = document.createElement(nodeName);
@@ -101,14 +107,15 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
           wrapperNode,
         });
 
-        // TODO fix ranges
-        // if (childNode === range.startContainer) {
-        //   range.setStart(wrapperNode, 0);
-        // }
-        //
-        // if (childNode === range.endContainer) {
-        //   range.setEnd(wrapperNode, (wrapperNode.textContent ?? '').length);
-        // }
+        selectedTextNode = wrapperNode.firstChild;
+      }
+
+      if (isStartContainer && selectedTextNode) {
+        newRange.setStart(selectedTextNode, 0);
+      }
+
+      if (isEndContainer && selectedTextNode) {
+        newRange.setEnd(selectedTextNode, endOffset - startOffset);
       }
     } else if (childNode.childNodes.length > 0) {
       childNode.childNodes.forEach(checkChild);
@@ -116,13 +123,20 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
   }
 
   rootNode.childNodes.forEach(checkChild);
+
+  /** save the same selection visually */
+  selection.removeRange(range);
+  selection.addRange(newRange);
 }
 
 function walkTreeToUpdateBlockNode(nodeName: string): void {
   if (!selection) return;
   const range = selection.getRangeAt(0);
 
-  // const containerNode = range.commonAncestorContainer;
+  const startSelectionNode = range.startContainer;
+  const startSelectionOffset = range.startOffset;
+  const endSelectionNode = range.endContainer;
+  const endSelectionOffset = range.endOffset;
 
   const rootNode = EDITABLE_AREA_ELEMENT;
 
@@ -135,14 +149,16 @@ function walkTreeToUpdateBlockNode(nodeName: string): void {
     if (!rootNode) return;
     if (isEndContainerFound) return;
 
-    if (!isStartContainerFound && !childNode.contains(range.startContainer))
+    /** skip child until find node where selection starts */
+    if (!isStartContainerFound && !childNode.contains(startSelectionNode)) {
       return;
+    }
 
-    if (childNode === range.startContainer) {
+    if (childNode.contains(range.startContainer)) {
       isStartContainerFound = true;
     }
 
-    if (childNode === range.endContainer) {
+    if (childNode.contains(range.endContainer)) {
       isEndContainerFound = true;
     }
 
@@ -154,6 +170,13 @@ function walkTreeToUpdateBlockNode(nodeName: string): void {
   }
 
   rootNode.childNodes.forEach((child) => checkChild(child, rootNode));
+
+  /** save the same selection visually */
+  const newRange = document.createRange();
+  newRange.setStart(startSelectionNode, startSelectionOffset);
+  newRange.setEnd(endSelectionNode, endSelectionOffset);
+  selection.removeRange(range);
+  selection.addRange(newRange);
 }
 
 /** Listen toolkit button clicks */
