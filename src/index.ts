@@ -1,74 +1,22 @@
-const NODE_NAMES = {
-  H1: 'H1',
-  H2: 'H2',
-  PARAGRAPH: 'P',
-  BOLD: 'STRONG',
-  ITALIC: 'I',
-} as const;
+import {
+  getCurrentSelection,
+  getEditableAreaElement,
+  hasParentWithNodeName,
+  insertEmptyParagraphAndFocus,
+  isBlockNode,
+  isBlockNodeName,
+  isInlineNodeName,
+  isTextNode,
+  replaceNodeName,
+  updateButtonActiveStatus,
+  wrapTextNodeIntoSpecificNode,
+} from './utils';
+import { NODE_NAMES } from './constants';
 
-const BLOCK_NODES = [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.PARAGRAPH];
-const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
-
-function isBlockNode(node: Node): boolean {
-  return (BLOCK_NODES as Array<string>).includes(node.nodeName);
-}
-
-function isTextNode(node: Node): boolean {
-  return node.nodeType === Node.TEXT_NODE;
-}
-
-function replaceNodeName(oldNode: Node, newNodeName: string, parentNode: Node) {
-  const newBlockNode = document.createElement(newNodeName);
-  oldNode.childNodes.forEach((nestedChildNode) => {
-    newBlockNode.appendChild(nestedChildNode);
-  });
-
-  parentNode.replaceChild(newBlockNode, oldNode);
-}
-
-const editAreaElement = document.getElementById('edit-area');
-
-let selection = document.getSelection();
-
-function hasParentWithNodeName(
-  currentNode: Node,
-  parentNodeName: string
-): boolean {
-  if (!editAreaElement) return false;
-  if (!editAreaElement.contains(currentNode)) return false;
-
-  let parent = currentNode.parentNode;
-
-  while (parent && parent !== editAreaElement) {
-    if (parent.nodeName === parentNodeName) {
-      return true;
-    }
-
-    parent = parent.parentNode;
-  }
-
-  return false;
-}
-
-function updateButtonActiveStatus(range: Range): void {
-  if (!range.collapsed) return;
-
-  const buttonElementList = document.querySelectorAll('button[data-command]');
-
-  const elementWithCursor = range.startContainer;
-
-  buttonElementList.forEach((buttonElement) => {
-    const nodeName =
-      buttonElement.getAttribute('data-command')?.toUpperCase() ?? '';
-
-    const isActive = hasParentWithNodeName(elementWithCursor, nodeName);
-
-    buttonElement.setAttribute('data-active', String(isActive));
-  });
-}
+let selection = getCurrentSelection();
 
 document.addEventListener('selectionchange', () => {
-  selection = document.getSelection();
+  selection = getCurrentSelection();
 
   if (selection) {
     const range = selection.getRangeAt(0);
@@ -76,107 +24,28 @@ document.addEventListener('selectionchange', () => {
   }
 });
 
-function convertToNode(nodeOrText: string | Node): Node {
-  return typeof nodeOrText === 'string'
-    ? document.createTextNode(nodeOrText)
-    : nodeOrText;
-}
+const EDITABLE_AREA_ELEMENT = getEditableAreaElement();
 
-function appendChild(
-  parent: Node,
-  nodeOrText: string | Node | null | undefined
-): void {
-  if (!nodeOrText) return;
-
-  parent.appendChild(convertToNode(nodeOrText));
-}
-
-function removeAllChildren(node: Node): void {
-  let child = node.lastChild;
-  while (child) {
-    node.removeChild(child);
-    child = node.lastChild;
+EDITABLE_AREA_ELEMENT.addEventListener('focus', () => {
+  if (EDITABLE_AREA_ELEMENT.children.length === 0) {
+    insertEmptyParagraphAndFocus(EDITABLE_AREA_ELEMENT);
   }
-}
+});
 
-function insertEmptyParagraph(element: HTMLElement) {
-  const paragraph = document.createElement('p');
-  paragraph.appendChild(document.createElement('br'));
-  element.appendChild(paragraph);
-
-  const range = new Range();
-  range.setStart(paragraph, 0);
-  range.setEnd(paragraph, 0);
-
-  if (selection) {
-    selection.addRange(range);
+const mutationObserver = new MutationObserver((mutations) => {
+  if (EDITABLE_AREA_ELEMENT.children.length === 0) {
+    insertEmptyParagraphAndFocus(EDITABLE_AREA_ELEMENT);
+  } else {
+    const latestMutation = mutations[mutations.length - 1];
+    latestMutation.addedNodes.forEach((addedNode) => {
+      if (!isBlockNode(addedNode)) {
+        replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
+      }
+    });
   }
-}
+});
 
-if (editAreaElement) {
-  editAreaElement.addEventListener('focus', () => {
-    if (editAreaElement.children.length === 0) {
-      insertEmptyParagraph(editAreaElement);
-    }
-  });
-
-  const mutationObserver = new MutationObserver((mutations) => {
-    if (editAreaElement.children.length === 0) {
-      insertEmptyParagraph(editAreaElement);
-    } else {
-      const latestMutation = mutations[mutations.length - 1];
-      latestMutation.addedNodes.forEach((addedNode) => {
-        if (!isBlockNode(addedNode)) {
-          replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, editAreaElement);
-        }
-      });
-    }
-  });
-
-  mutationObserver.observe(editAreaElement, { childList: true });
-}
-
-function wrapTextNodeIntoSpecificNode(params: {
-  textNode: Node;
-  wrapperNodeName: string;
-  range: { start: number; end: number };
-}): HTMLElement {
-  const { textNode, wrapperNodeName, range } = params;
-
-  const rootNode = textNode.parentNode;
-
-  const text = textNode.textContent ?? '';
-  const wrapperNode = document.createElement(wrapperNodeName);
-  wrapperNode.textContent = text.slice(range.start, range.end);
-
-  const newChildren: Array<Node | string> = [
-    text.slice(0, range.start),
-    wrapperNode,
-    text.slice(range.end),
-  ];
-
-  let previousSiblingNode = textNode.previousSibling;
-
-  while (previousSiblingNode) {
-    newChildren.unshift(previousSiblingNode);
-    previousSiblingNode = previousSiblingNode?.previousSibling ?? null;
-  }
-
-  let nextSiblingNode = textNode.nextSibling;
-
-  while (nextSiblingNode) {
-    newChildren.push(nextSiblingNode);
-    nextSiblingNode = nextSiblingNode?.nextSibling ?? null;
-  }
-
-  if (rootNode) {
-    removeAllChildren(rootNode);
-
-    newChildren.forEach((child) => appendChild(rootNode, child));
-  }
-
-  return wrapperNode;
-}
+mutationObserver.observe(EDITABLE_AREA_ELEMENT, { childList: true });
 
 function walkTreeToUpdateInlineNode(nodeName: string): void {
   if (!selection) return;
@@ -221,13 +90,15 @@ function walkTreeToUpdateInlineNode(nodeName: string): void {
           : (textNode.textContent ?? '').length;
 
       if (!hasParentWithNodeName(textNode, nodeName)) {
-        const wrapperNode = wrapTextNodeIntoSpecificNode({
+        const wrapperNode = document.createElement(nodeName);
+
+        wrapTextNodeIntoSpecificNode({
           textNode,
           range: {
             start: startOffset,
             end: endOffset,
           },
-          wrapperNodeName: nodeName,
+          wrapperNode,
         });
 
         // TODO fix ranges
@@ -253,7 +124,7 @@ function walkTreeToUpdateBlockNode(nodeName: string): void {
 
   // const containerNode = range.commonAncestorContainer;
 
-  const rootNode = editAreaElement;
+  const rootNode = EDITABLE_AREA_ELEMENT;
 
   if (!rootNode) return;
 
@@ -285,38 +156,19 @@ function walkTreeToUpdateBlockNode(nodeName: string): void {
   rootNode.childNodes.forEach((child) => checkChild(child, rootNode));
 }
 
-function getButtonByNodeName(nodeName: string): Element | null {
-  return document.querySelector(`[data-command="${nodeName.toLowerCase()}"]`);
-}
+/** Listen toolkit button clicks */
+document.querySelectorAll(`button[data-command]`).forEach((button) => {
+  const nodeName = button.getAttribute('data-command') ?? '';
 
-const boldButton = getButtonByNodeName(NODE_NAMES.BOLD);
+  if (isBlockNodeName(nodeName)) {
+    button.addEventListener('click', () => {
+      walkTreeToUpdateBlockNode(nodeName);
+    });
+  }
 
-if (boldButton) {
-  boldButton.addEventListener('click', () => {
-    walkTreeToUpdateInlineNode(NODE_NAMES.BOLD);
-  });
-}
-
-const italicButton = getButtonByNodeName(NODE_NAMES.ITALIC);
-
-if (italicButton) {
-  italicButton.addEventListener('click', () => {
-    walkTreeToUpdateInlineNode(NODE_NAMES.ITALIC);
-  });
-}
-
-const h1Button = getButtonByNodeName(NODE_NAMES.H1);
-
-if (h1Button) {
-  h1Button.addEventListener('click', () => {
-    walkTreeToUpdateBlockNode(NODE_NAMES.H1);
-  });
-}
-
-const h2Button = getButtonByNodeName(NODE_NAMES.H2);
-
-if (h2Button) {
-  h2Button.addEventListener('click', () => {
-    walkTreeToUpdateBlockNode(NODE_NAMES.H2);
-  });
-}
+  if (isInlineNodeName(nodeName)) {
+    button.addEventListener('click', () => {
+      walkTreeToUpdateInlineNode(nodeName);
+    });
+  }
+});
