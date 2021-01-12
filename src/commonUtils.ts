@@ -61,6 +61,8 @@ export function replaceNodeName(
   newNodeName: string,
   parentNode: Node
 ) {
+  if (oldNode.nodeName === newNodeName) return;
+
   const newNode = document.createElement(newNodeName);
   replaceNode(oldNode, newNode, parentNode);
 }
@@ -151,6 +153,51 @@ export function wrapTextNodeIntoSpecificNode(params: {
   }
 }
 
+// export function unwrapNodePartially(
+//   node: Node,
+//   range: { start: number; end: number }
+// ): void {
+//   const wholeText = node.textContent ?? '';
+//   const unwrappedTextLength = range.end - range.start;
+//
+//   if (wholeText.length === unwrappedTextLength) {
+//     const parent = node.parentNode;
+//
+//     if (parent) {
+//       iterateChildNodes(node, (childNode) => {
+//         const nextNestedChild = childNode.nextSibling;
+//
+//         if (childNode.textContent) {
+//           parent.insertBefore(childNode, childNode);
+//         }
+//
+//         return nextNestedChild;
+//       });
+//
+//       parent.removeChild(node);
+//     }
+//   } else {
+//     const iteratedTextLength = 0;
+//
+//     iterateChildNodes(node, (childNode) => {
+//       const nextNestedChild = childNode.nextSibling;
+//
+//       const currentNodeTextLength = (childNode.textContent ?? '').length;
+//       const startOffset = iteratedTextLength;
+//       const endOffset = startOffset + currentNodeTextLength;
+//
+//       if (endOffset < range.start || startOffset > range.end) return null;
+//
+//       const;
+//       if (childNode.textContent) {
+//         parent.insertBefore(childNode, childNode);
+//       }
+//
+//       return nextNestedChild;
+//     });
+//   }
+// }
+
 export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   const paragraph = document.createElement('p');
   paragraph.appendChild(document.createElement('br'));
@@ -188,4 +235,33 @@ export function updateButtonActiveStatus(range: Range): void {
 
     buttonElement.setAttribute('data-active', String(isActive));
   });
+}
+
+export function iterateSelectedNodes(
+  callback: (selectedNode: Node) => void
+): void {
+  const selection = getCurrentSelection();
+
+  if (!selection) return;
+
+  const range = selection.getRangeAt(0);
+
+  const ancestorNode = range.commonAncestorContainer;
+  const rootNode = isTextNode(ancestorNode)
+    ? ancestorNode.parentNode
+    : ancestorNode;
+
+  function handleChild(childNode: Node): Node | null {
+    if (!selection || !selection.containsNode(childNode, true)) return null;
+
+    callback(childNode);
+
+    iterateChildNodes(childNode, handleChild);
+
+    return null;
+  }
+
+  if (rootNode) {
+    iterateChildNodes(rootNode, handleChild);
+  }
 }
