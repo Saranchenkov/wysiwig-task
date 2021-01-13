@@ -7,10 +7,10 @@ import {
   isInlineNodeName,
   replaceNodeName,
   updateButtonActiveStatus,
-} from './commonUtils';
+} from './utils/common';
 import { NODE_NAMES } from './constants';
-import { walkTreeToUpdateInlineNode } from './inlineNodeUtils';
-import { walkTreeToUpdateBlockNode } from './blockNodeUtils';
+import { walkTreeToUpdateInlineNode } from './utils/inlineElements';
+import { walkTreeToUpdateBlockNode } from './utils/blockElements';
 
 document.addEventListener('selectionchange', () => {
   const selection = getCurrentSelection();

@@ -1,4 +1,4 @@
-import { BLOCK_NODES, INLINE_NODES, NODE_NAMES } from './constants';
+import { BLOCK_NODES, INLINE_NODES, NODE_NAMES } from '../constants';
 
 export function getCurrentSelection(): Selection | null {
   return document.getSelection();
@@ -152,51 +152,6 @@ export function wrapTextNodeIntoSpecificNode(params: {
     parent.removeChild(textNode);
   }
 }
-
-// export function unwrapNodePartially(
-//   node: Node,
-//   range: { start: number; end: number }
-// ): void {
-//   const wholeText = node.textContent ?? '';
-//   const unwrappedTextLength = range.end - range.start;
-//
-//   if (wholeText.length === unwrappedTextLength) {
-//     const parent = node.parentNode;
-//
-//     if (parent) {
-//       iterateChildNodes(node, (childNode) => {
-//         const nextNestedChild = childNode.nextSibling;
-//
-//         if (childNode.textContent) {
-//           parent.insertBefore(childNode, childNode);
-//         }
-//
-//         return nextNestedChild;
-//       });
-//
-//       parent.removeChild(node);
-//     }
-//   } else {
-//     const iteratedTextLength = 0;
-//
-//     iterateChildNodes(node, (childNode) => {
-//       const nextNestedChild = childNode.nextSibling;
-//
-//       const currentNodeTextLength = (childNode.textContent ?? '').length;
-//       const startOffset = iteratedTextLength;
-//       const endOffset = startOffset + currentNodeTextLength;
-//
-//       if (endOffset < range.start || startOffset > range.end) return null;
-//
-//       const;
-//       if (childNode.textContent) {
-//         parent.insertBefore(childNode, childNode);
-//       }
-//
-//       return nextNestedChild;
-//     });
-//   }
-// }
 
 export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   const paragraph = document.createElement('p');

@@ -3,8 +3,8 @@ import {
   getEditableAreaElement,
   isBlockNode,
   replaceNodeName,
-} from './commonUtils';
-import { NODE_NAMES } from './constants';
+} from './common';
+import { NODE_NAMES } from '../constants';
 
 // eslint-disable-next-line import/prefer-default-export
 export function walkTreeToUpdateBlockNode(nodeName: string): void {

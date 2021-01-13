@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "build": "rollup --config",
-    "start": "rollup --config --watch --watch.buildDelay 1000"
+    "start": "rollup --config --watch"
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^8.1.0",

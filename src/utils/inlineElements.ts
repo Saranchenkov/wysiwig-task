@@ -5,7 +5,8 @@ import {
   iterateChildNodes,
   iterateSelectedNodes,
   wrapTextNodeIntoSpecificNode,
-} from './commonUtils';
+} from './common';
+import { splitNodeBySelection } from './splitNodeBySelection';
 
 // eslint-disable-next-line import/prefer-default-export
 export function walkTreeToUpdateInlineNode(nodeName: string): void {
@@ -18,54 +19,69 @@ export function walkTreeToUpdateInlineNode(nodeName: string): void {
 
   const containerNode = range.commonAncestorContainer;
 
-  const rootNode = isTextNode(containerNode)
+  let rootNode = isTextNode(containerNode)
     ? containerNode.parentNode
     : containerNode;
 
   if (!rootNode) return;
 
+  const newRange = document.createRange();
+
   let shouldClearFormatting = false;
 
   iterateSelectedNodes((selectedNode) => {
-    /** If selection contains node that is already formatted this way - clear formatting */
+    /**
+     * If selection contains node that is already formatted this way - clear formatting
+     * e.g. <p>ab|c<strong>1234|567890</strong>def</p>
+     */
     if (selectedNode.nodeName === nodeName) {
       shouldClearFormatting = true;
     }
   });
 
-  const newRange = document.createRange();
+  /**
+   * In this case root node is already formatted and contains whole selection,
+   * so we should clear formatting
+   * e.g. <strong>1234|567|890</strong>
+   */
+  if (rootNode && rootNode.nodeName === nodeName) {
+    rootNode = rootNode.parentNode;
+    shouldClearFormatting = true;
+  }
 
-  function checkChild(childNode: Node): Node | null {
+  if (!rootNode) return;
+
+  function processChild(childNode: Node): Node | null {
     if (!rootNode || !selection) return null;
 
     /** skip child until find node where selection starts */
     if (!selection.containsNode(childNode, true)) return null;
 
-    // debugger;
-    // if (shouldClearFormatting) {
-    //   if (childNode.nodeName !== nodeName) return null;
-    //
-    //   const parent = childNode.parentNode;
-    //   const nextNode = childNode.nextSibling;
-    //
-    //   if (parent) {
-    //     iterateChildNodes(childNode, (nestedChild) => {
-    //       const nextNestedChild = nestedChild.nextSibling;
-    //
-    //       if (nestedChild.textContent) {
-    //         parent.insertBefore(nestedChild, childNode);
-    //       }
-    //
-    //       return nextNestedChild;
-    //     });
-    //
-    //     parent.removeChild(childNode);
-    //
-    //     return nextNode;
-    //   }
-    //
-    //   return null;
-    // }
+    /** cancel formatting of selected nodes */
+    if (shouldClearFormatting) {
+      if (childNode.nodeName === nodeName) {
+        const parent = childNode.parentNode;
+        const nextNode = childNode.nextSibling;
+
+        const newChildren = splitNodeBySelection(childNode, newRange);
+
+        if (parent && newChildren) {
+          newChildren.forEach((newChild) => {
+            parent.insertBefore(newChild, childNode);
+          });
+
+          parent.removeChild(childNode);
+        }
+
+        return nextNode;
+      }
+
+      if (childNode.childNodes.length > 0) {
+        iterateChildNodes(childNode, processChild);
+      }
+
+      return null;
+    }
 
     if (isTextNode(childNode)) {
       const nextSiblingNode = childNode.nextSibling;
@@ -86,11 +102,11 @@ export function walkTreeToUpdateInlineNode(nodeName: string): void {
       if (!hasParentWithNodeName(textNode, nodeName)) {
         wrapTextNodeIntoSpecificNode({
           textNode,
+          wrapperNode,
           range: {
             start: startOffset,
             end: endOffset,
           },
-          wrapperNode,
         });
 
         selectedTextNode = wrapperNode.firstChild;
@@ -108,13 +124,13 @@ export function walkTreeToUpdateInlineNode(nodeName: string): void {
     }
 
     if (childNode.childNodes.length > 0) {
-      iterateChildNodes(childNode, checkChild);
+      iterateChildNodes(childNode, processChild);
     }
 
     return null;
   }
 
-  iterateChildNodes(rootNode, checkChild);
+  iterateChildNodes(rootNode, processChild);
 
   /** save the same selection visually */
   selection.removeRange(range);
