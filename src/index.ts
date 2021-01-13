@@ -56,7 +56,7 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
 
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
-      requestAnimationFrame(() => walkTreeToUpdateInlineNode(nodeName));
+      walkTreeToUpdateInlineNode(nodeName);
     });
   }
 });
