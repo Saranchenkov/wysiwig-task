@@ -1,4 +1,4 @@
-import { BLOCK_NODES, INLINE_NODES, NODE_NAMES } from '../constants';
+import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, styleMap } from '../constants';
 
 export function getCurrentSelection(): Selection | null {
   return document.getSelection();
@@ -60,11 +60,13 @@ export function replaceNodeName(
   oldNode: Node,
   newNodeName: string,
   parentNode: Node
-) {
-  if (oldNode.nodeName === newNodeName) return;
+): Node {
+  if (oldNode.nodeName === newNodeName) return oldNode;
 
   const newNode = document.createElement(newNodeName);
   replaceNode(oldNode, newNode, parentNode);
+
+  return newNode;
 }
 
 export function getEditableAreaElement(): HTMLElement {
@@ -218,5 +220,15 @@ export function iterateSelectedNodes(
 
   if (rootNode) {
     iterateChildNodes(rootNode, handleChild);
+  }
+}
+
+export function applyStylesForNode(element: HTMLElement): void {
+  const style = styleMap[element.nodeName];
+
+  if (style) {
+    element.setAttribute('style', style);
+  } else {
+    element.removeAttribute('style');
   }
 }

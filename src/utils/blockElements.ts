@@ -1,4 +1,5 @@
 import {
+  applyStylesForNode,
   getCurrentSelection,
   getEditableAreaElement,
   isBlockNode,
@@ -26,11 +27,15 @@ export function walkTreeToUpdateBlockNode(nodeName: string): void {
     const shouldClearFormatting = childNode.nodeName === nodeName;
 
     if (isBlockNode(childNode)) {
-      replaceNodeName(
+      const finalNodeName = shouldClearFormatting
+        ? NODE_NAMES.PARAGRAPH
+        : nodeName;
+      const replacedNode = replaceNodeName(
         childNode,
-        shouldClearFormatting ? NODE_NAMES.PARAGRAPH : nodeName,
+        finalNodeName,
         parentNode
       );
+      applyStylesForNode(replacedNode as HTMLElement);
     }
   }
 

@@ -7,6 +7,11 @@ const NODE_NAMES = {
 };
 const BLOCK_NODES = [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.PARAGRAPH];
 const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
+const styleMap = {
+    [NODE_NAMES.H1]: 'font-weight: bold; font-size: 32px;',
+    [NODE_NAMES.H2]: 'font-weight: bold; font-size: 24px;',
+    [NODE_NAMES.PARAGRAPH]: '',
+};
 
 function getCurrentSelection() {
     return document.getSelection();
@@ -40,9 +45,10 @@ function replaceNode(oldNode, newNode, parentNode) {
 }
 function replaceNodeName(oldNode, newNodeName, parentNode) {
     if (oldNode.nodeName === newNodeName)
-        return;
+        return oldNode;
     const newNode = document.createElement(newNodeName);
     replaceNode(oldNode, newNode, parentNode);
+    return newNode;
 }
 function getEditableAreaElement() {
     const element = document.getElementById('edit-area');
@@ -134,6 +140,15 @@ function iterateSelectedNodes(callback) {
     }
     if (rootNode) {
         iterateChildNodes(rootNode, handleChild);
+    }
+}
+function applyStylesForNode(element) {
+    const style = styleMap[element.nodeName];
+    if (style) {
+        element.setAttribute('style', style);
+    }
+    else {
+        element.removeAttribute('style');
     }
 }
 
@@ -480,7 +495,11 @@ function walkTreeToUpdateBlockNode(nodeName) {
             return;
         const shouldClearFormatting = childNode.nodeName === nodeName;
         if (isBlockNode(childNode)) {
-            replaceNodeName(childNode, shouldClearFormatting ? NODE_NAMES.PARAGRAPH : nodeName, parentNode);
+            const finalNodeName = shouldClearFormatting
+                ? NODE_NAMES.PARAGRAPH
+                : nodeName;
+            const replacedNode = replaceNodeName(childNode, finalNodeName, parentNode);
+            applyStylesForNode(replacedNode);
         }
     }
     rootNode.childNodes.forEach((child) => checkChild(child, rootNode));
