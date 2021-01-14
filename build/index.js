@@ -10,9 +10,18 @@ const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
 const styleMap = {
     [NODE_NAMES.H1]: 'font-weight: bold; font-size: 32px;',
     [NODE_NAMES.H2]: 'font-weight: bold; font-size: 24px;',
-    [NODE_NAMES.PARAGRAPH]: '',
+    [NODE_NAMES.PARAGRAPH]: 'font-size: 16px;',
 };
 
+function applyStylesForNode(element) {
+    const style = styleMap[element.nodeName];
+    if (style) {
+        element.setAttribute('style', style);
+    }
+    else {
+        element.removeAttribute('style');
+    }
+}
 function getCurrentSelection() {
     return document.getSelection();
 }
@@ -97,6 +106,7 @@ function wrapTextNodeIntoSpecificNode(params) {
 }
 function insertEmptyParagraphAndFocus(parentElement) {
     const paragraph = document.createElement('p');
+    applyStylesForNode(paragraph);
     paragraph.appendChild(document.createElement('br'));
     parentElement.appendChild(paragraph);
     const range = document.createRange();
@@ -140,15 +150,6 @@ function iterateSelectedNodes(callback) {
     }
     if (rootNode) {
         iterateChildNodes(rootNode, handleChild);
-    }
-}
-function applyStylesForNode(element) {
-    const style = styleMap[element.nodeName];
-    if (style) {
-        element.setAttribute('style', style);
-    }
-    else {
-        element.removeAttribute('style');
     }
 }
 
@@ -532,7 +533,8 @@ const mutationObserver = new MutationObserver((mutations) => {
         const latestMutation = mutations[mutations.length - 1];
         latestMutation.addedNodes.forEach((addedNode) => {
             if (!isBlockNode(addedNode)) {
-                replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
+                const replacedNode = replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
+                applyStylesForNode(replacedNode);
             }
         });
     }

@@ -1,5 +1,15 @@
 import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, styleMap } from '../constants';
 
+export function applyStylesForNode(element: HTMLElement): void {
+  const style = styleMap[element.nodeName];
+
+  if (style) {
+    element.setAttribute('style', style);
+  } else {
+    element.removeAttribute('style');
+  }
+}
+
 export function getCurrentSelection(): Selection | null {
   return document.getSelection();
 }
@@ -157,6 +167,8 @@ export function wrapTextNodeIntoSpecificNode(params: {
 
 export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   const paragraph = document.createElement('p');
+  applyStylesForNode(paragraph as HTMLElement);
+
   paragraph.appendChild(document.createElement('br'));
   parentElement.appendChild(paragraph);
 
@@ -220,15 +232,5 @@ export function iterateSelectedNodes(
 
   if (rootNode) {
     iterateChildNodes(rootNode, handleChild);
-  }
-}
-
-export function applyStylesForNode(element: HTMLElement): void {
-  const style = styleMap[element.nodeName];
-
-  if (style) {
-    element.setAttribute('style', style);
-  } else {
-    element.removeAttribute('style');
   }
 }

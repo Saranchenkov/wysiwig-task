@@ -12,5 +12,5 @@ export const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
 export const styleMap: Record<string, string> = {
   [NODE_NAMES.H1]: 'font-weight: bold; font-size: 32px;',
   [NODE_NAMES.H2]: 'font-weight: bold; font-size: 24px;',
-  [NODE_NAMES.PARAGRAPH]: '',
+  [NODE_NAMES.PARAGRAPH]: 'font-size: 16px;',
 };

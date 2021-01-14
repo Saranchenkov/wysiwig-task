@@ -1,4 +1,5 @@
 import {
+  applyStylesForNode,
   getCurrentSelection,
   getEditableAreaElement,
   insertEmptyParagraphAndFocus,
@@ -36,7 +37,12 @@ const mutationObserver = new MutationObserver((mutations) => {
     const latestMutation = mutations[mutations.length - 1];
     latestMutation.addedNodes.forEach((addedNode) => {
       if (!isBlockNode(addedNode)) {
-        replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
+        const replacedNode = replaceNodeName(
+          addedNode,
+          NODE_NAMES.PARAGRAPH,
+          EDITABLE_AREA_ELEMENT
+        );
+        applyStylesForNode(replacedNode as HTMLElement);
       }
     });
   }
