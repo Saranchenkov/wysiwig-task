@@ -9,8 +9,10 @@ export const NODE_NAMES = {
 export const BLOCK_NODES = [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.PARAGRAPH];
 export const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
 
-export const styleMap: Record<string, string> = {
-  [NODE_NAMES.H1]: 'font-weight: bold; font-size: 32px;',
-  [NODE_NAMES.H2]: 'font-weight: bold; font-size: 24px;',
-  [NODE_NAMES.PARAGRAPH]: 'font-size: 16px;',
+export const STYLE_MAP: Record<string, string> = {
+  [NODE_NAMES.H1]: 'font-size: 32px; font-weight: bold;',
+  [NODE_NAMES.H2]: 'font-size: 24px; font-weight: bold;',
+  [NODE_NAMES.PARAGRAPH]: 'font-size: 16px; font-weight: normal;',
+  [NODE_NAMES.BOLD]: 'font-size: 16px; font-weight: bold;',
+  [NODE_NAMES.ITALIC]: 'font-size: 16px; font-style: italic;',
 };

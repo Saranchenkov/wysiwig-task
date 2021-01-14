@@ -1,5 +1,5 @@
 import {
-  applyStylesForNode,
+  setStyleToElement,
   getCurrentSelection,
   getEditableAreaElement,
   isBlockNode,
@@ -35,7 +35,7 @@ export function walkTreeToUpdateBlockNode(nodeName: string): void {
         finalNodeName,
         parentNode
       );
-      applyStylesForNode(replacedNode as HTMLElement);
+      setStyleToElement(replacedNode as HTMLElement);
     }
   }
 

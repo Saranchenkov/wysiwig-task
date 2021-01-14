@@ -1,7 +1,7 @@
-import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, styleMap } from '../constants';
+import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, STYLE_MAP } from '../constants';
 
-export function applyStylesForNode(element: HTMLElement): void {
-  const style = styleMap[element.nodeName];
+export function setStyleToElement(element: HTMLElement): void {
+  const style = STYLE_MAP[element.nodeName];
 
   if (style) {
     element.setAttribute('style', style);
@@ -46,6 +46,11 @@ export function iterateChildNodes(
 
   while (currentChildNode) {
     const nextSibling = callback(currentChildNode);
+
+    if (nextSibling === currentChildNode) {
+      console.warn('iterateChildNodes infinite loop possible');
+    }
+
     currentChildNode = nextSibling ?? currentChildNode.nextSibling;
   }
 }
@@ -167,7 +172,7 @@ export function wrapTextNodeIntoSpecificNode(params: {
 
 export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   const paragraph = document.createElement('p');
-  applyStylesForNode(paragraph as HTMLElement);
+  setStyleToElement(paragraph as HTMLElement);
 
   paragraph.appendChild(document.createElement('br'));
   parentElement.appendChild(paragraph);
