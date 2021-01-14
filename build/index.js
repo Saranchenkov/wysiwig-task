@@ -11,11 +11,17 @@ const STYLE_MAP = {
     [NODE_NAMES.H1]: 'font-size: 32px; font-weight: bold;',
     [NODE_NAMES.H2]: 'font-size: 24px; font-weight: bold;',
     [NODE_NAMES.PARAGRAPH]: 'font-size: 16px; font-weight: normal;',
-    [NODE_NAMES.BOLD]: 'font-size: 16px; font-weight: bold;',
-    [NODE_NAMES.ITALIC]: 'font-size: 16px; font-style: italic;',
+    [NODE_NAMES.BOLD]: 'font-weight: bold;',
+    [NODE_NAMES.ITALIC]: 'font-style: italic;',
 };
 
-function setStyleToElement(element) {
+function isElementNode(node) {
+    return node.nodeType === Node.ELEMENT_NODE;
+}
+function setStyleToElement(node) {
+    if (!isElementNode(node))
+        return;
+    const element = node;
     const style = STYLE_MAP[element.nodeName];
     if (style) {
         element.setAttribute('style', style);
@@ -62,6 +68,15 @@ function replaceNodeName(oldNode, newNodeName, parentNode) {
         return oldNode;
     const newNode = document.createElement(newNodeName);
     replaceNode(oldNode, newNode, parentNode);
+    return newNode;
+}
+function replaceNameOfStaticNode(staticNode, newNodeName) {
+    const newNode = document.createElement(newNodeName);
+    iterateChildNodes(staticNode, (childNode) => {
+        const nextNode = childNode.nextSibling;
+        newNode.appendChild(childNode);
+        return nextNode;
+    });
     return newNode;
 }
 function getEditableAreaElement() {
@@ -156,6 +171,114 @@ function iterateSelectedNodes(callback) {
     if (rootNode) {
         iterateChildNodes(rootNode, handleChild);
     }
+}
+function cloneOneSideOfNodeTree(params) {
+    const { ancestorNode, dividerTextNode, dividerTextOffset, cloneDirection, } = params;
+    if (!dividerTextNode ||
+        dividerTextNode === ancestorNode ||
+        !ancestorNode.contains(dividerTextNode))
+        return ancestorNode;
+    function getNextSiblingToClone(node) {
+        if (!node)
+            return null;
+        return cloneDirection === 'left' ? node.previousSibling : node.nextSibling;
+    }
+    function addChild(options) {
+        const { parentNode, currentNode, newChildNode } = options;
+        if (cloneDirection === 'left') {
+            parentNode.insertBefore(newChildNode, currentNode);
+        }
+        else {
+            parentNode.appendChild(newChildNode);
+        }
+    }
+    const fullText = dividerTextNode.textContent ?? '';
+    const newTextContent = cloneDirection === 'left'
+        ? fullText.slice(0, dividerTextOffset)
+        : fullText.slice(dividerTextOffset);
+    let currentNode = dividerTextNode;
+    let currentParentNode = dividerTextNode.parentNode;
+    let currentCloneNode = document.createTextNode(newTextContent);
+    let currentParentCloneNode = currentParentNode
+        ? currentParentNode.cloneNode(false)
+        : null;
+    if (currentParentCloneNode) {
+        currentParentCloneNode.appendChild(currentCloneNode);
+    }
+    /** until we achieve the top of tree */
+    while (currentParentNode &&
+        currentParentCloneNode &&
+        currentNode !== ancestorNode) {
+        let currentSiblingNode = getNextSiblingToClone(currentNode);
+        while (currentSiblingNode) {
+            const siblingClone = currentSiblingNode.cloneNode(true);
+            if (currentParentCloneNode && currentCloneNode) {
+                addChild({
+                    parentNode: currentParentCloneNode,
+                    currentNode: currentCloneNode,
+                    newChildNode: siblingClone,
+                });
+            }
+            currentNode = currentSiblingNode;
+            currentCloneNode = siblingClone;
+            currentSiblingNode = getNextSiblingToClone(currentNode);
+        }
+        currentNode = currentParentNode;
+        currentCloneNode = currentParentCloneNode;
+        currentParentNode = currentNode.parentNode;
+        currentParentCloneNode = currentParentNode
+            ? currentParentNode.cloneNode(false)
+            : null;
+        if (currentParentCloneNode) {
+            currentParentCloneNode.appendChild(currentCloneNode);
+        }
+    }
+    return currentCloneNode ?? ancestorNode;
+}
+function removeOneSideOfTree(params) {
+    const { ancestorNode, dividerTextNode, dividerTextOffset, removeDirection, } = params;
+    if (!dividerTextNode ||
+        dividerTextNode === ancestorNode ||
+        !ancestorNode.contains(dividerTextNode))
+        return ancestorNode;
+    function getNextSiblingToRemove(node) {
+        return removeDirection === 'right'
+            ? node.nextSibling
+            : node.previousSibling;
+    }
+    const fullText = dividerTextNode.textContent ?? '';
+    dividerTextNode.textContent =
+        removeDirection === 'left'
+            ? fullText.slice(dividerTextOffset)
+            : fullText.slice(0, dividerTextOffset);
+    let currentNode = dividerTextNode;
+    let currentParentNode = currentNode.parentNode;
+    while (currentParentNode && currentNode !== ancestorNode) {
+        let siblingToRemove = getNextSiblingToRemove(currentNode);
+        while (siblingToRemove) {
+            currentParentNode.removeChild(siblingToRemove);
+            siblingToRemove = getNextSiblingToRemove(currentNode);
+        }
+        currentNode = currentParentNode;
+        currentParentNode = currentNode.parentNode;
+    }
+    return currentNode;
+}
+function splitNodeByTextNode(params) {
+    const { ancestorNode, dividerTextNode, dividerTextOffset } = params;
+    const leftSideClone = cloneOneSideOfNodeTree({
+        ancestorNode: ancestorNode,
+        dividerTextNode,
+        dividerTextOffset,
+        cloneDirection: 'left',
+    });
+    const rightSideClone = cloneOneSideOfNodeTree({
+        ancestorNode: ancestorNode,
+        dividerTextNode,
+        dividerTextOffset,
+        cloneDirection: 'right',
+    });
+    return [leftSideClone, rightSideClone];
 }
 
 function splitNodeBySelection(node, newRange) {
@@ -491,30 +614,110 @@ function walkTreeToUpdateBlockNode(nodeName) {
     if (!selection || selection.rangeCount === 0)
         return;
     const range = selection.getRangeAt(0);
-    const startSelectionNode = range.startContainer;
-    const startSelectionOffset = range.startOffset;
-    const endSelectionNode = range.endContainer;
-    const endSelectionOffset = range.endOffset;
+    const isRangeCollapsed = range.collapsed;
     const rootNode = getEditableAreaElement();
-    function checkChild(childNode, parentNode) {
-        if (!selection || !selection.containsNode(childNode, true))
-            return;
-        const shouldClearFormatting = childNode.nodeName === nodeName;
-        if (isBlockNode(childNode)) {
+    if (isRangeCollapsed) {
+        rootNode.childNodes.forEach((childNode) => {
+            if (!selection || !selection.containsNode(childNode, true))
+                return;
+            const shouldClearFormatting = childNode.nodeName === nodeName;
             const finalNodeName = shouldClearFormatting
                 ? NODE_NAMES.PARAGRAPH
                 : nodeName;
-            const replacedNode = replaceNodeName(childNode, finalNodeName, parentNode);
-            setStyleToElement(replacedNode);
-        }
+            if (isBlockNode(childNode)) {
+                replaceNodeName(childNode, finalNodeName, rootNode);
+            }
+        });
     }
-    rootNode.childNodes.forEach((child) => checkChild(child, rootNode));
-    /** save the same selection visually */
-    const newRange = document.createRange();
-    newRange.setStart(startSelectionNode, startSelectionOffset);
-    newRange.setEnd(endSelectionNode, endSelectionOffset);
-    selection.removeRange(range);
-    selection.addRange(newRange);
+    else {
+        const startSelectionNode = range.startContainer;
+        const startSelectionOffset = range.startOffset;
+        const endSelectionNode = range.endContainer;
+        const endSelectionOffset = range.endOffset;
+        iterateChildNodes(rootNode, (blockNode) => {
+            if (!selection || !selection.containsNode(blockNode, true))
+                return null;
+            const shouldClearFormatting = blockNode.nodeName === nodeName;
+            const finalNodeName = shouldClearFormatting
+                ? NODE_NAMES.PARAGRAPH
+                : nodeName;
+            const nextNode = blockNode.nextSibling;
+            const containsSelectionStart = blockNode.contains(startSelectionNode);
+            const containsSelectionEnd = blockNode.contains(endSelectionNode);
+            let beforeSelectionPart = null;
+            let inSelectionPart = null;
+            let afterSelectionPart = null;
+            if (!containsSelectionStart && !containsSelectionEnd) {
+                inSelectionPart = blockNode;
+            }
+            else if (containsSelectionStart && !containsSelectionEnd) {
+                const [left, right] = splitNodeByTextNode({
+                    ancestorNode: blockNode,
+                    dividerTextNode: startSelectionNode,
+                    dividerTextOffset: startSelectionOffset,
+                });
+                beforeSelectionPart = left;
+                inSelectionPart = right;
+            }
+            else if (!containsSelectionStart && containsSelectionEnd) {
+                const [left, right] = splitNodeByTextNode({
+                    ancestorNode: blockNode,
+                    dividerTextNode: endSelectionNode,
+                    dividerTextOffset: endSelectionOffset,
+                });
+                inSelectionPart = left;
+                afterSelectionPart = right;
+            }
+            else if (containsSelectionStart && containsSelectionEnd) {
+                beforeSelectionPart = cloneOneSideOfNodeTree({
+                    ancestorNode: blockNode,
+                    dividerTextNode: startSelectionNode,
+                    dividerTextOffset: startSelectionOffset,
+                    cloneDirection: 'left',
+                });
+                afterSelectionPart = cloneOneSideOfNodeTree({
+                    ancestorNode: blockNode,
+                    dividerTextNode: endSelectionNode,
+                    dividerTextOffset: endSelectionOffset,
+                    cloneDirection: 'right',
+                });
+                inSelectionPart = removeOneSideOfTree({
+                    ancestorNode: blockNode,
+                    dividerTextNode: endSelectionNode,
+                    dividerTextOffset: endSelectionOffset,
+                    removeDirection: 'right',
+                });
+                inSelectionPart = removeOneSideOfTree({
+                    ancestorNode: blockNode,
+                    dividerTextNode: startSelectionNode,
+                    dividerTextOffset: startSelectionOffset,
+                    removeDirection: 'left',
+                });
+            }
+            function isNodeWithContentGuard(node) {
+                return Boolean(node && node.textContent);
+            }
+            const isSelectionPartStatic = inSelectionPart !== blockNode;
+            if (inSelectionPart && isSelectionPartStatic) {
+                inSelectionPart = replaceNameOfStaticNode(inSelectionPart, finalNodeName);
+                rootNode.removeChild(blockNode);
+            }
+            if (inSelectionPart && !isSelectionPartStatic) {
+                const replacedBlockNode = replaceNodeName(blockNode, finalNodeName, rootNode);
+                inSelectionPart = replacedBlockNode.cloneNode(true);
+                rootNode.removeChild(replacedBlockNode);
+            }
+            const finalChildren = [
+                beforeSelectionPart,
+                inSelectionPart,
+                afterSelectionPart,
+            ].filter(isNodeWithContentGuard);
+            finalChildren.forEach((child) => {
+                rootNode.insertBefore(child, nextNode);
+            });
+            return nextNode;
+        });
+    }
 }
 
 document.addEventListener('selectionchange', () => {
@@ -525,8 +728,7 @@ document.addEventListener('selectionchange', () => {
     }
 });
 const EDITABLE_AREA_ELEMENT = getEditableAreaElement();
-/** browser can remove some styles when paste text in editor */
-EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
+function ensureAllBlocksAreStyledCorrectly() {
     function applyStyleForEachChild(parent) {
         iterateChildNodes(parent, (childNode) => {
             setStyleToElement(childNode);
@@ -534,6 +736,10 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
             return null;
         });
     }
+    requestAnimationFrame(() => applyStyleForEachChild(EDITABLE_AREA_ELEMENT));
+}
+/** browser can remove some styles when paste content in editor */
+EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
     requestAnimationFrame(() => {
         iterateChildNodes(EDITABLE_AREA_ELEMENT, (childNode) => {
             const hasNestedBlockNode = isBlockNode(childNode) &&
@@ -551,7 +757,7 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
             }
             return null;
         });
-        applyStyleForEachChild(EDITABLE_AREA_ELEMENT);
+        ensureAllBlocksAreStyledCorrectly();
     });
 });
 /** by default there are no any initial element inside editor */
@@ -566,7 +772,7 @@ const mutationObserver = new MutationObserver((mutations) => {
     }
     else {
         const latestMutation = mutations[mutations.length - 1];
-        /** When add newline browser create <div> element by default. I replace it with <p> */
+        /** When user adds new line browser creates <div> element by default. I replace <div> with <p> */
         latestMutation.addedNodes.forEach((addedNode) => {
             if (!isBlockNode(addedNode)) {
                 const replacedNode = replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
@@ -583,10 +789,12 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
         button.addEventListener('click', () => {
             walkTreeToUpdateBlockNode(nodeName);
         });
+        ensureAllBlocksAreStyledCorrectly();
     }
     if (isInlineNodeName(nodeName)) {
         button.addEventListener('click', () => {
             walkTreeToUpdateInlineNode(nodeName);
         });
+        ensureAllBlocksAreStyledCorrectly();
     }
 });

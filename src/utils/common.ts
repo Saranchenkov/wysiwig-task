@@ -1,6 +1,14 @@
 import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, STYLE_MAP } from '../constants';
 
-export function setStyleToElement(element: HTMLElement): void {
+export function isElementNode(node: Node): boolean {
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+export function setStyleToElement(node: Node): void {
+  if (!isElementNode(node)) return;
+
+  const element = node as Element;
+
   const style = STYLE_MAP[element.nodeName];
 
   if (style) {
@@ -80,6 +88,23 @@ export function replaceNodeName(
 
   const newNode = document.createElement(newNodeName);
   replaceNode(oldNode, newNode, parentNode);
+
+  return newNode;
+}
+
+export function replaceNameOfStaticNode(
+  staticNode: Node,
+  newNodeName: string
+): Node {
+  const newNode = document.createElement(newNodeName);
+
+  iterateChildNodes(staticNode, (childNode) => {
+    const nextNode = childNode.nextSibling;
+
+    newNode.appendChild(childNode);
+
+    return nextNode;
+  });
 
   return newNode;
 }
@@ -172,7 +197,7 @@ export function wrapTextNodeIntoSpecificNode(params: {
 
 export function insertEmptyParagraphAndFocus(parentElement: HTMLElement) {
   const paragraph = document.createElement('p');
-  setStyleToElement(paragraph as HTMLElement);
+  setStyleToElement(paragraph);
 
   paragraph.appendChild(document.createElement('br'));
   parentElement.appendChild(paragraph);
@@ -238,4 +263,179 @@ export function iterateSelectedNodes(
   if (rootNode) {
     iterateChildNodes(rootNode, handleChild);
   }
+}
+
+export function cloneOneSideOfNodeTree(params: {
+  ancestorNode: Element;
+  dividerTextNode: Node | null;
+  dividerTextOffset: number;
+  cloneDirection: 'right' | 'left';
+}): Node {
+  const {
+    ancestorNode,
+    dividerTextNode,
+    dividerTextOffset,
+    cloneDirection,
+  } = params;
+
+  if (
+    !dividerTextNode ||
+    dividerTextNode === ancestorNode ||
+    !ancestorNode.contains(dividerTextNode)
+  )
+    return ancestorNode;
+
+  function getNextSiblingToClone(node: Node): Node | null {
+    if (!node) return null;
+
+    return cloneDirection === 'left' ? node.previousSibling : node.nextSibling;
+  }
+
+  function addChild(options: {
+    parentNode: Node;
+    currentNode: Node;
+    newChildNode: Node;
+  }): void {
+    const { parentNode, currentNode, newChildNode } = options;
+
+    if (cloneDirection === 'left') {
+      parentNode.insertBefore(newChildNode, currentNode);
+    } else {
+      parentNode.appendChild(newChildNode);
+    }
+  }
+
+  const fullText = dividerTextNode.textContent ?? '';
+
+  const newTextContent =
+    cloneDirection === 'left'
+      ? fullText.slice(0, dividerTextOffset)
+      : fullText.slice(dividerTextOffset);
+
+  let currentNode: Node = dividerTextNode;
+  let currentParentNode: Node | null = dividerTextNode.parentNode;
+  let currentCloneNode: Node = document.createTextNode(newTextContent);
+
+  let currentParentCloneNode: Node | null = currentParentNode
+    ? currentParentNode.cloneNode(false)
+    : null;
+
+  if (currentParentCloneNode) {
+    currentParentCloneNode.appendChild(currentCloneNode);
+  }
+
+  /** until we achieve the top of tree */
+  while (
+    currentParentNode &&
+    currentParentCloneNode &&
+    currentNode !== ancestorNode
+  ) {
+    let currentSiblingNode = getNextSiblingToClone(currentNode);
+
+    while (currentSiblingNode) {
+      const siblingClone = currentSiblingNode.cloneNode(true);
+
+      if (currentParentCloneNode && currentCloneNode) {
+        addChild({
+          parentNode: currentParentCloneNode,
+          currentNode: currentCloneNode,
+          newChildNode: siblingClone,
+        });
+      }
+
+      currentNode = currentSiblingNode;
+      currentCloneNode = siblingClone;
+      currentSiblingNode = getNextSiblingToClone(currentNode);
+    }
+
+    currentNode = currentParentNode;
+    currentCloneNode = currentParentCloneNode;
+
+    currentParentNode = currentNode.parentNode;
+
+    currentParentCloneNode = currentParentNode
+      ? currentParentNode.cloneNode(false)
+      : null;
+
+    if (currentParentCloneNode) {
+      currentParentCloneNode.appendChild(currentCloneNode);
+    }
+  }
+
+  return currentCloneNode ?? ancestorNode;
+}
+
+export function removeOneSideOfTree(params: {
+  ancestorNode: Element;
+  dividerTextNode: Node | null;
+  dividerTextOffset: number;
+  removeDirection: 'right' | 'left';
+}): Node {
+  const {
+    ancestorNode,
+    dividerTextNode,
+    dividerTextOffset,
+    removeDirection,
+  } = params;
+  if (
+    !dividerTextNode ||
+    dividerTextNode === ancestorNode ||
+    !ancestorNode.contains(dividerTextNode)
+  )
+    return ancestorNode;
+
+  function getNextSiblingToRemove(node: Node) {
+    return removeDirection === 'right'
+      ? node.nextSibling
+      : node.previousSibling;
+  }
+
+  const fullText = dividerTextNode.textContent ?? '';
+
+  dividerTextNode.textContent =
+    removeDirection === 'left'
+      ? fullText.slice(dividerTextOffset)
+      : fullText.slice(0, dividerTextOffset);
+
+  let currentNode = dividerTextNode;
+  let currentParentNode = currentNode.parentNode;
+
+  while (currentParentNode && currentNode !== ancestorNode) {
+    let siblingToRemove = getNextSiblingToRemove(currentNode);
+
+    while (siblingToRemove) {
+      currentParentNode.removeChild(siblingToRemove);
+
+      siblingToRemove = getNextSiblingToRemove(currentNode);
+    }
+
+    currentNode = currentParentNode;
+    currentParentNode = currentNode.parentNode;
+  }
+
+  return currentNode;
+}
+
+export function splitNodeByTextNode(params: {
+  ancestorNode: Node;
+  dividerTextNode: Node;
+  dividerTextOffset: number;
+}): [Node, Node] {
+  const { ancestorNode, dividerTextNode, dividerTextOffset } = params;
+
+  const leftSideClone = cloneOneSideOfNodeTree({
+    ancestorNode: ancestorNode as Element,
+    dividerTextNode,
+    dividerTextOffset,
+    cloneDirection: 'left',
+  });
+
+  const rightSideClone = cloneOneSideOfNodeTree({
+    ancestorNode: ancestorNode as Element,
+    dividerTextNode,
+    dividerTextOffset,
+    cloneDirection: 'right',
+  });
+
+  return [leftSideClone, rightSideClone];
 }

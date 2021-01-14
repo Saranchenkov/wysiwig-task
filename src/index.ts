@@ -25,11 +25,10 @@ document.addEventListener('selectionchange', () => {
 
 const EDITABLE_AREA_ELEMENT = getEditableAreaElement();
 
-/** browser can remove some styles when paste text in editor */
-EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
+function ensureAllBlocksAreStyledCorrectly() {
   function applyStyleForEachChild(parent: Node) {
     iterateChildNodes(parent, (childNode) => {
-      setStyleToElement(childNode as HTMLElement);
+      setStyleToElement(childNode);
 
       applyStyleForEachChild(childNode);
 
@@ -37,6 +36,11 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
     });
   }
 
+  requestAnimationFrame(() => applyStyleForEachChild(EDITABLE_AREA_ELEMENT));
+}
+
+/** browser can remove some styles when paste content in editor */
+EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
   requestAnimationFrame(() => {
     iterateChildNodes(EDITABLE_AREA_ELEMENT, (childNode) => {
       const hasNestedBlockNode =
@@ -61,7 +65,7 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
       return null;
     });
 
-    applyStyleForEachChild(EDITABLE_AREA_ELEMENT);
+    ensureAllBlocksAreStyledCorrectly();
   });
 });
 
@@ -78,7 +82,7 @@ const mutationObserver = new MutationObserver((mutations) => {
   } else {
     const latestMutation = mutations[mutations.length - 1];
 
-    /** When add newline browser create <div> element by default. I replace it with <p> */
+    /** When user adds new line browser creates <div> element by default. I replace <div> with <p> */
     latestMutation.addedNodes.forEach((addedNode) => {
       if (!isBlockNode(addedNode)) {
         const replacedNode = replaceNodeName(
@@ -86,7 +90,7 @@ const mutationObserver = new MutationObserver((mutations) => {
           NODE_NAMES.PARAGRAPH,
           EDITABLE_AREA_ELEMENT
         );
-        setStyleToElement(replacedNode as HTMLElement);
+        setStyleToElement(replacedNode);
       }
     });
   }
@@ -102,11 +106,15 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
     button.addEventListener('click', () => {
       walkTreeToUpdateBlockNode(nodeName);
     });
+
+    ensureAllBlocksAreStyledCorrectly();
   }
 
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
       walkTreeToUpdateInlineNode(nodeName);
     });
+
+    ensureAllBlocksAreStyledCorrectly();
   }
 });
