@@ -20,12 +20,10 @@ export function walkTreeToUpdateBlockNode(nodeName: string): void {
 
   const rootNode = getEditableAreaElement();
 
-  const shouldClearFormatting = Array.from(rootNode.childNodes).some(
-    (childNode) => childNode.nodeName === nodeName
-  );
-
   function checkChild(childNode: Node, parentNode: Node): void {
     if (!selection || !selection.containsNode(childNode, true)) return;
+
+    const shouldClearFormatting = childNode.nodeName === nodeName;
 
     if (isBlockNode(childNode)) {
       replaceNodeName(

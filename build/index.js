@@ -475,10 +475,10 @@ function walkTreeToUpdateBlockNode(nodeName) {
     const endSelectionNode = range.endContainer;
     const endSelectionOffset = range.endOffset;
     const rootNode = getEditableAreaElement();
-    const shouldClearFormatting = Array.from(rootNode.childNodes).some((childNode) => childNode.nodeName === nodeName);
     function checkChild(childNode, parentNode) {
         if (!selection || !selection.containsNode(childNode, true))
             return;
+        const shouldClearFormatting = childNode.nodeName === nodeName;
         if (isBlockNode(childNode)) {
             replaceNodeName(childNode, shouldClearFormatting ? NODE_NAMES.PARAGRAPH : nodeName, parentNode);
         }
