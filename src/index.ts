@@ -105,16 +105,15 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
   if (isBlockNodeName(nodeName)) {
     button.addEventListener('click', () => {
       walkTreeToUpdateBlockNode(nodeName);
+      ensureAllBlocksAreStyledCorrectly();
     });
-
-    ensureAllBlocksAreStyledCorrectly();
   }
 
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
       walkTreeToUpdateInlineNode(nodeName);
-    });
 
-    ensureAllBlocksAreStyledCorrectly();
+      ensureAllBlocksAreStyledCorrectly();
+    });
   }
 });
