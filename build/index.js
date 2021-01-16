@@ -7,12 +7,12 @@ const NODE_NAMES = {
 };
 const BLOCK_NODES = [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.PARAGRAPH];
 const INLINE_NODES = [NODE_NAMES.BOLD, NODE_NAMES.ITALIC];
-const STYLE_MAP = {
-    [NODE_NAMES.H1]: 'font-size: 32px; font-weight: bold;',
-    [NODE_NAMES.H2]: 'font-size: 24px; font-weight: bold;',
-    [NODE_NAMES.PARAGRAPH]: 'font-size: 16px; font-weight: normal;',
-    [NODE_NAMES.BOLD]: 'font-weight: bold;',
-    [NODE_NAMES.ITALIC]: 'font-style: italic;',
+const CLASS_MAP = {
+    [NODE_NAMES.H1]: 'header1-text',
+    [NODE_NAMES.H2]: 'header2-text',
+    [NODE_NAMES.PARAGRAPH]: '',
+    [NODE_NAMES.BOLD]: 'bold-text',
+    [NODE_NAMES.ITALIC]: 'italic-text',
 };
 
 function isElementNode(node) {
@@ -22,12 +22,13 @@ function setStyleToElement(node) {
     if (!isElementNode(node))
         return;
     const element = node;
-    const style = STYLE_MAP[element.nodeName];
-    if (style) {
-        element.setAttribute('style', style);
+    const className = CLASS_MAP[element.nodeName];
+    element.removeAttribute('style');
+    if (className) {
+        element.setAttribute('class', className);
     }
     else {
-        element.removeAttribute('style');
+        element.removeAttribute('class');
     }
 }
 function getCurrentSelection() {
@@ -738,6 +739,48 @@ function ensureAllBlocksAreStyledCorrectly() {
     }
     requestAnimationFrame(() => applyStyleForEachChild(EDITABLE_AREA_ELEMENT));
 }
+function isFakeBoldNode(node) {
+    if (!isElementNode(node))
+        return false;
+    const element = node;
+    const isSpan = element.nodeName === 'SPAN';
+    const hasBoldClass = element.classList.contains(CLASS_MAP[NODE_NAMES.BOLD]);
+    const hasBoldStyle = ['bold', '700'].includes(element.style.fontWeight);
+    return isSpan && (hasBoldClass || hasBoldStyle);
+}
+function isFakeItalicNode(node) {
+    if (!isElementNode(node))
+        return false;
+    const element = node;
+    const isSpan = element.nodeName === 'SPAN';
+    const hasItalicClass = element.classList.contains(CLASS_MAP[NODE_NAMES.ITALIC]);
+    const hasItalicStyle = element.style.fontStyle === 'italic';
+    return isSpan && (hasItalicClass || hasItalicStyle);
+}
+/** Browser can replace <strong> with <span> */
+function filterChildren(parentNode) {
+    iterateChildNodes(parentNode, (childNode) => {
+        const nextChildNode = childNode.nextSibling;
+        let currentNode = childNode;
+        if (isFakeBoldNode(currentNode)) {
+            currentNode = replaceNodeName(childNode, NODE_NAMES.BOLD, parentNode);
+        }
+        else if (isFakeItalicNode(currentNode)) {
+            currentNode = replaceNodeName(childNode, NODE_NAMES.ITALIC, parentNode);
+        }
+        else if (currentNode.nodeName === 'SPAN') {
+            iterateChildNodes(childNode, (innerNestedChild) => {
+                const nextInnerNestedChild = innerNestedChild.nextSibling;
+                parentNode.insertBefore(innerNestedChild, childNode);
+                return nextInnerNestedChild;
+            });
+            parentNode.removeChild(childNode);
+            return nextChildNode;
+        }
+        filterChildren(currentNode);
+        return nextChildNode;
+    });
+}
 /** browser can remove some styles when paste content in editor */
 EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
     requestAnimationFrame(() => {
@@ -745,6 +788,7 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
             const hasNestedBlockNode = isBlockNode(childNode) &&
                 childNode.firstChild &&
                 isBlockNode(childNode.firstChild);
+            filterChildren(childNode);
             if (hasNestedBlockNode) {
                 const nextNode = childNode.nextSibling;
                 iterateChildNodes(childNode, (nestedChild) => {
@@ -757,6 +801,7 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
             }
             return null;
         });
+        EDITABLE_AREA_ELEMENT.normalize();
         ensureAllBlocksAreStyledCorrectly();
     });
 });
@@ -779,6 +824,7 @@ const mutationObserver = new MutationObserver((mutations) => {
                 setStyleToElement(replacedNode);
             }
         });
+        filterChildren(EDITABLE_AREA_ELEMENT);
     }
 });
 mutationObserver.observe(EDITABLE_AREA_ELEMENT, { childList: true });

@@ -1,4 +1,4 @@
-import { BLOCK_NODES, INLINE_NODES, NODE_NAMES, STYLE_MAP } from '../constants';
+import { BLOCK_NODES, CLASS_MAP, INLINE_NODES, NODE_NAMES } from '../constants';
 
 export function isElementNode(node: Node): boolean {
   return node.nodeType === Node.ELEMENT_NODE;
@@ -9,12 +9,14 @@ export function setStyleToElement(node: Node): void {
 
   const element = node as Element;
 
-  const style = STYLE_MAP[element.nodeName];
+  const className = CLASS_MAP[element.nodeName];
 
-  if (style) {
-    element.setAttribute('style', style);
+  element.removeAttribute('style');
+
+  if (className) {
+    element.setAttribute('class', className);
   } else {
-    element.removeAttribute('style');
+    element.removeAttribute('class');
   }
 }
 

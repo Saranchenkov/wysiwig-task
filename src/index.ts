@@ -9,8 +9,9 @@ import {
   iterateChildNodes,
   replaceNodeName,
   updateButtonActiveStatus,
+  isElementNode,
 } from './utils/common';
-import { NODE_NAMES } from './constants';
+import { CLASS_MAP, NODE_NAMES } from './constants';
 import { walkTreeToUpdateInlineNode } from './utils/inlineElements';
 import { walkTreeToUpdateBlockNode } from './utils/blockElements';
 
@@ -39,6 +40,60 @@ function ensureAllBlocksAreStyledCorrectly() {
   requestAnimationFrame(() => applyStyleForEachChild(EDITABLE_AREA_ELEMENT));
 }
 
+function isFakeBoldNode(node: Node): boolean {
+  if (!isElementNode(node)) return false;
+
+  const element = node as HTMLElement;
+
+  const isSpan = element.nodeName === 'SPAN';
+  const hasBoldClass = element.classList.contains(CLASS_MAP[NODE_NAMES.BOLD]);
+  const hasBoldStyle = ['bold', '700'].includes(element.style.fontWeight);
+
+  return isSpan && (hasBoldClass || hasBoldStyle);
+}
+
+function isFakeItalicNode(node: Node): boolean {
+  if (!isElementNode(node)) return false;
+
+  const element = node as HTMLElement;
+
+  const isSpan = element.nodeName === 'SPAN';
+  const hasItalicClass = element.classList.contains(
+    CLASS_MAP[NODE_NAMES.ITALIC]
+  );
+  const hasItalicStyle = element.style.fontStyle === 'italic';
+
+  return isSpan && (hasItalicClass || hasItalicStyle);
+}
+
+/** Browser can replace <strong> with <span> */
+function filterChildren(parentNode: Node) {
+  iterateChildNodes(parentNode, (childNode) => {
+    const nextChildNode = childNode.nextSibling;
+    let currentNode = childNode;
+
+    if (isFakeBoldNode(currentNode)) {
+      currentNode = replaceNodeName(childNode, NODE_NAMES.BOLD, parentNode);
+    } else if (isFakeItalicNode(currentNode)) {
+      currentNode = replaceNodeName(childNode, NODE_NAMES.ITALIC, parentNode);
+    } else if (currentNode.nodeName === 'SPAN') {
+      iterateChildNodes(childNode, (innerNestedChild) => {
+        const nextInnerNestedChild = innerNestedChild.nextSibling;
+        parentNode.insertBefore(innerNestedChild, childNode);
+        return nextInnerNestedChild;
+      });
+
+      parentNode.removeChild(childNode);
+
+      return nextChildNode;
+    }
+
+    filterChildren(currentNode);
+
+    return nextChildNode;
+  });
+}
+
 /** browser can remove some styles when paste content in editor */
 EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
   requestAnimationFrame(() => {
@@ -47,6 +102,8 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
         isBlockNode(childNode) &&
         childNode.firstChild &&
         isBlockNode(childNode.firstChild);
+
+      filterChildren(childNode);
 
       if (hasNestedBlockNode) {
         const nextNode = childNode.nextSibling;
@@ -64,6 +121,8 @@ EDITABLE_AREA_ELEMENT.addEventListener('paste', () => {
 
       return null;
     });
+
+    EDITABLE_AREA_ELEMENT.normalize();
 
     ensureAllBlocksAreStyledCorrectly();
   });
@@ -93,6 +152,8 @@ const mutationObserver = new MutationObserver((mutations) => {
         setStyleToElement(replacedNode);
       }
     });
+
+    filterChildren(EDITABLE_AREA_ELEMENT);
   }
 });
 
@@ -112,7 +173,6 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
       walkTreeToUpdateInlineNode(nodeName);
-
       ensureAllBlocksAreStyledCorrectly();
     });
   }
