@@ -448,7 +448,13 @@ function applyComputedStyle(currentNode: Node, cloneNode: Node): Node {
 
   /** some properties can be added in future */
   const STYLE_FIELDS = [
-    'font',
+    'font-style',
+    'font-variant',
+    'font-weight',
+    'font-stretch',
+    'font-size',
+    'line-height',
+    'font-family',
     'color',
     'background-color',
     'text-decoration',
