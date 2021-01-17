@@ -10,6 +10,7 @@ import {
   replaceNodeName,
   updateButtonActiveStatus,
   isElementNode,
+  getSelectedContentAsString,
 } from './utils/common';
 import { CLASS_MAP, NODE_NAMES } from './constants';
 import { walkTreeToUpdateInlineNode } from './utils/inlineElements';
@@ -65,6 +66,50 @@ function isFakeItalicNode(node: Node): boolean {
 
   return isSpan && (hasItalicClass || hasItalicStyle);
 }
+
+EDITABLE_AREA_ELEMENT.addEventListener('copy', (event: ClipboardEvent) => {
+  const selection = getCurrentSelection();
+  if (!selection) return;
+
+  const selectedContentAsString = getSelectedContentAsString(selection);
+
+  if (selectedContentAsString && event.clipboardData) {
+    event.clipboardData.setData('text/plain', selection.toString());
+    event.clipboardData.setData('text/html', selectedContentAsString);
+
+    event.preventDefault();
+  }
+});
+
+EDITABLE_AREA_ELEMENT.addEventListener('cut', (event: ClipboardEvent) => {
+  const selection = getCurrentSelection();
+  if (!selection) return;
+
+  const selectedContentAsString = getSelectedContentAsString(selection);
+
+  if (selectedContentAsString && event.clipboardData) {
+    event.clipboardData.setData('text/plain', selection.toString());
+    event.clipboardData.setData('text/html', selectedContentAsString);
+
+    selection.deleteFromDocument();
+
+    /**
+     * Remove child if it doesn't have any text content
+     * Browser may leave a couple of empty tags after cut
+     */
+    iterateChildNodes(EDITABLE_AREA_ELEMENT, (childNode) => {
+      const nextNode = childNode.nextSibling;
+
+      if (!childNode.textContent) {
+        EDITABLE_AREA_ELEMENT.removeChild(childNode);
+      }
+
+      return nextNode;
+    });
+
+    event.preventDefault();
+  }
+});
 
 /** Browser can replace <strong> with <span> */
 function filterChildren(parentNode: Node) {

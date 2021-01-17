@@ -441,3 +441,93 @@ export function splitNodeByTextNode(params: {
 
   return [leftSideClone, rightSideClone];
 }
+
+function applyComputedStyle(currentNode: Node, cloneNode: Node): Node {
+  if (!isElementNode(currentNode) || !isElementNode(cloneNode))
+    return cloneNode;
+
+  /** some properties can be added in future */
+  const STYLE_FIELDS = [
+    'font',
+    'color',
+    'background-color',
+    'text-decoration',
+    'text-transform',
+    'text-align',
+  ];
+
+  const computedStyle = window.getComputedStyle(currentNode as HTMLElement);
+
+  STYLE_FIELDS.forEach((styleProp) => {
+    const propValue = computedStyle.getPropertyValue(styleProp);
+    (cloneNode as HTMLElement).style.setProperty(styleProp, propValue);
+  });
+
+  return cloneNode;
+}
+
+function cloneSelectedNode(
+  selection: Selection,
+  parentNode: Node,
+  parentNodeClone: Node
+): void {
+  if (!selection.containsNode(parentNode, true)) return;
+
+  const range = selection.getRangeAt(0);
+
+  iterateChildNodes(parentNode, (childNode) => {
+    if (!selection.containsNode(childNode, true)) return null;
+
+    const childNodeClone = childNode.cloneNode(false);
+    applyComputedStyle(childNode, childNodeClone);
+
+    parentNodeClone.appendChild(childNodeClone);
+
+    if (isTextNode(childNode)) {
+      const isStartContainer = childNode === range.startContainer;
+      const isEndContainer = childNode === range.endContainer;
+
+      const currentTextContent = childNode.textContent ?? '';
+      const startOffset = isStartContainer ? range.startOffset : 0;
+      const endOffset = isEndContainer
+        ? range.endOffset
+        : currentTextContent.length;
+
+      childNodeClone.textContent = currentTextContent.slice(
+        startOffset,
+        endOffset
+      );
+    }
+
+    if (isElementNode(childNode)) {
+      cloneSelectedNode(selection, childNode, childNodeClone);
+    }
+
+    return null;
+  });
+}
+
+export function getSelectedContentAsString(selection: Selection) {
+  const editableAreaElement = getEditableAreaElement();
+
+  const nodeList: Array<Node> = [];
+
+  editableAreaElement.childNodes.forEach((childNode) => {
+    if (!selection.containsNode(childNode, true)) return;
+
+    const childNodeClone = childNode.cloneNode(false);
+    applyComputedStyle(childNode, childNodeClone);
+
+    cloneSelectedNode(selection, childNode, childNodeClone);
+
+    nodeList.push(childNodeClone);
+  });
+
+  let text = '';
+
+  nodeList.forEach((childElement) => {
+    text += (childElement as HTMLElement).outerHTML;
+  });
+
+  return text;
+}
