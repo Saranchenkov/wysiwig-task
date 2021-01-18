@@ -349,6 +349,14 @@ function getSelectedContentAsString(selection) {
     });
     return text;
 }
+function isEditableAreaContainsSelection() {
+    const selection = getCurrentSelection();
+    if (!selection)
+        return false;
+    const editableArea = getEditableAreaElement();
+    return (editableArea.contains(selection.anchorNode) &&
+        editableArea.contains(selection.focusNode));
+}
 
 function splitNodeBySelection(node, newRange) {
     const selection = getCurrentSelection();
@@ -950,12 +958,16 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
     const nodeName = (button.getAttribute('data-command') ?? '').toUpperCase();
     if (isBlockNodeName(nodeName)) {
         button.addEventListener('click', () => {
+            if (!isEditableAreaContainsSelection())
+                return;
             walkTreeToUpdateBlockNode(nodeName);
             ensureAllBlocksAreStyledCorrectly();
         });
     }
     if (isInlineNodeName(nodeName)) {
         button.addEventListener('click', () => {
+            if (!isEditableAreaContainsSelection())
+                return;
             walkTreeToUpdateInlineNode(nodeName);
             ensureAllBlocksAreStyledCorrectly();
         });

@@ -13,6 +13,7 @@ import {
   getSelectedContentAsString,
   isTextNode,
   replaceNode,
+  isEditableAreaContainsSelection,
 } from './utils/common';
 import { CLASS_MAP, NODE_NAMES } from './constants';
 import { walkTreeToUpdateInlineNode } from './utils/inlineElements';
@@ -231,6 +232,8 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
 
   if (isBlockNodeName(nodeName)) {
     button.addEventListener('click', () => {
+      if (!isEditableAreaContainsSelection()) return;
+
       walkTreeToUpdateBlockNode(nodeName);
       ensureAllBlocksAreStyledCorrectly();
     });
@@ -238,6 +241,8 @@ document.querySelectorAll(`button[data-command]`).forEach((button) => {
 
   if (isInlineNodeName(nodeName)) {
     button.addEventListener('click', () => {
+      if (!isEditableAreaContainsSelection()) return;
+
       walkTreeToUpdateInlineNode(nodeName);
       ensureAllBlocksAreStyledCorrectly();
     });

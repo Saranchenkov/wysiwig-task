@@ -537,3 +537,16 @@ export function getSelectedContentAsString(selection: Selection) {
 
   return text;
 }
+
+export function isEditableAreaContainsSelection(): boolean {
+  const selection = getCurrentSelection();
+
+  if (!selection) return false;
+
+  const editableArea = getEditableAreaElement();
+
+  return (
+    editableArea.contains(selection.anchorNode) &&
+    editableArea.contains(selection.focusNode)
+  );
+}
