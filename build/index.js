@@ -921,9 +921,24 @@ const mutationObserver = new MutationObserver((mutations) => {
         const latestMutation = mutations[mutations.length - 1];
         /** When user adds new line browser creates <div> element by default. I replace <div> with <p> */
         latestMutation.addedNodes.forEach((addedNode) => {
-            if (!isBlockNode(addedNode)) {
+            if (isElementNode(addedNode) && !isBlockNode(addedNode)) {
                 const replacedNode = replaceNodeName(addedNode, NODE_NAMES.PARAGRAPH, EDITABLE_AREA_ELEMENT);
                 setStyleToElement(replacedNode);
+            }
+            /** Fix typing start in Firefox */
+            if (isTextNode(addedNode)) {
+                const paragraph = document.createElement(NODE_NAMES.PARAGRAPH);
+                const text = addedNode.textContent ?? '';
+                paragraph.textContent = text;
+                replaceNode(addedNode, paragraph, EDITABLE_AREA_ELEMENT);
+                const selection = getCurrentSelection();
+                if (selection) {
+                    const range = document.createRange();
+                    range.setStart(paragraph, text.length);
+                    range.setEnd(paragraph, text.length);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
             }
         });
         filterChildren(EDITABLE_AREA_ELEMENT);
